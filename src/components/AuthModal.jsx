@@ -26,15 +26,18 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
         ? { email, secret: `0 ${password}`, clientType: 100, deviceID: deviceId, timestamp: Date.now() }
         : { email, secret: `0 ${password}`, nickname: nickname.trim(), clientType: 100, deviceID: deviceId, timestamp: Date.now() };
 
+      const bodyString = JSON.stringify(payload);
       let successData = null;
 
       try {
+        const liveHeaders = await getLiveHeaders(null, bodyString);
         const res = await fetch(endpoint, {
           method: 'POST',
-          headers: getLiveHeaders(),
-          body: JSON.stringify(payload)
+          headers: liveHeaders,
+          body: bodyString
         });
         const json = await res.json();
+        
         if (json['api:statuscode'] === 0) {
           successData = {
             uid: json.userProfile?.uid || json.auid || `user-${Date.now()}`,
@@ -46,6 +49,10 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
             coins: json.userProfile?.coins || 500,
             isLiveSession: true
           };
+        } else if (json['api:statuscode'] === 200) {
+          setErrorMsg("Account not found with this email/password on this AltAmino instance. If you are new, switch to 'Register' or click 'Continue with This Email' below.");
+          setIsLoading(false);
+          return;
         } else if (json['api:message']) {
           setErrorMsg(json['api:message']);
           setIsLoading(false);
@@ -208,12 +215,52 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
             background: 'rgba(239, 68, 68, 0.15)',
             border: '1px solid rgba(239, 68, 68, 0.3)',
             color: '#f87171',
-            padding: '10px 14px',
-            borderRadius: '10px',
+            padding: '12px 14px',
+            borderRadius: '12px',
             fontSize: '12px',
-            marginBottom: '16px'
+            marginBottom: '16px',
+            lineHeight: 1.45
           }}>
-            {errorMsg}
+            <div>{errorMsg}</div>
+            {email && (
+              <button
+                type="button"
+                onClick={() => {
+                  const name = nickname.trim() || email.split('@')[0];
+                  const userObj = {
+                    uid: `user-${Date.now()}`,
+                    nickname: name,
+                    aminoId: name.toLowerCase().replace(/[^a-z0-9]/g, ''),
+                    email: email,
+                    avatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80",
+                    level: 12,
+                    coins: 500,
+                    streak: 15,
+                    sid: `SESSION_${Date.now()}`
+                  };
+                  onLoginSuccess(userObj);
+                  onClose();
+                }}
+                style={{
+                  marginTop: '10px',
+                  width: '100%',
+                  padding: '8px 12px',
+                  background: 'rgba(99, 102, 241, 0.35)',
+                  border: '1px solid #6366f1',
+                  color: '#fff',
+                  borderRadius: '8px',
+                  fontSize: '12px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                <span>➜</span> Continue as "{email.split('@')[0]}"
+              </button>
+            )}
           </div>
         )}
 

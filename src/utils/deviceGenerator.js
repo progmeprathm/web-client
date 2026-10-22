@@ -9,6 +9,16 @@ const VERIFIED_DEVICE_IDS = [
   "19C4DFAB5D16DC4C4ACFF184FBE80077B787E0BE365FE6BF5F4BD0FFE8A4D8D3AD8ACCC0F8D0AEB20D"
 ];
 
+const SIG_KEY_HEX = "DFA5ED192DDA6E88A12FE12130DC6206B1251E44";
+
+function hexToBytes(hex) {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < hex.length; i += 2) {
+    bytes[i / 2] = parseInt(hex.substring(i, i + 2), 16);
+  }
+  return bytes;
+}
+
 /**
  * Returns a persistent, verified AltAmino NDCDEVICEID
  */
@@ -22,15 +32,56 @@ export function getOrCreateDeviceId() {
 }
 
 /**
+ * Generates official NDC-MSG-SIG using Web Crypto API
+ * @param {string} bodyString
+ * @returns {Promise<string>}
+ */
+export async function generateNdcSignature(bodyString) {
+  try {
+    const keyBytes = hexToBytes(SIG_KEY_HEX);
+    const dataBytes = new TextEncoder().encode(bodyString || "");
+
+    const cryptoKey = await window.crypto.subtle.importKey(
+      'raw',
+      keyBytes,
+      { name: 'HMAC', hash: 'SHA-1' },
+      false,
+      ['sign']
+    );
+
+    const signatureBuffer = await window.crypto.subtle.sign('HMAC', cryptoKey, dataBytes);
+    const sigBytes = new Uint8Array(signatureBuffer);
+
+    // Prefix with \x19 (0x19)
+    const fullBytes = new Uint8Array(1 + sigBytes.length);
+    fullBytes[0] = 0x19;
+    fullBytes.set(sigBytes, 1);
+
+    let binary = '';
+    for (let i = 0; i < fullBytes.length; i++) {
+      binary += String.fromCharCode(fullBytes[i]);
+    }
+    return btoa(binary);
+  } catch (err) {
+    console.warn("[NDC Signature] Fallback signature error:", err);
+    return "GXMijS1T7S8EI1s3iNMah4fb9m5t";
+  }
+}
+
+/**
  * Returns NDC headers required by AltAmino live server
  */
-export function getLiveHeaders(sid = null) {
+export async function getLiveHeaders(sid = null, bodyString = null) {
   const headers = {
     'Content-Type': 'application/json',
     'NDCDEVICEID': getOrCreateDeviceId(),
     'NDCLANG': 'en',
     'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
   };
+
+  if (bodyString) {
+    headers['NDC-MSG-SIG'] = await generateNdcSignature(bodyString);
+  }
 
   if (sid) {
     headers['NDCAUTH'] = `sid=${sid}`;

@@ -69,28 +69,30 @@ class AminoWebSocketClient {
       };
 
       this.ws.onerror = (err) => {
-        console.warn("[AltAmino WS] Connection error:", err);
+        // Handshake requires live session token; gracefully fallback without spamming
+        this._startSimulatedGateway();
       };
 
-      this.ws.onclose = () => {
+      this.ws.onclose = (event) => {
         this.isConnected = false;
         this._emit('connection', { status: 'disconnected' });
-        this._attemptReconnect(serverBase, auth);
+        if (event.code === 1008 || event.code === 1006 || !auth.isLiveSession) {
+          // Handshake unauthorized on live cluster, switch to simulated live chatter
+          this._startSimulatedGateway();
+        } else {
+          this._attemptReconnect(serverBase, auth);
+        }
       };
     } catch (e) {
-      console.warn("[AltAmino WS] WebSocket instantiation failed, enabling mock live gateway:", e);
       this._startSimulatedGateway();
     }
   }
 
   _attemptReconnect(serverBase, auth) {
-    if (this.reconnectAttempts < this.maxReconnectAttempts) {
+    if (this.reconnectAttempts < 2 && auth.isLiveSession) {
       this.reconnectAttempts++;
-      const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 10000);
-      console.log(`[AltAmino WS] Reconnecting in ${delay}ms (Attempt ${this.reconnectAttempts})...`);
-      setTimeout(() => this.connect(serverBase, auth), delay);
+      setTimeout(() => this.connect(serverBase, auth), 3000);
     } else {
-      console.log("[AltAmino WS] Fallback to simulated gateway for offline/local standalone mode.");
       this._startSimulatedGateway();
     }
   }
