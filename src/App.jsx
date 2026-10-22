@@ -208,7 +208,7 @@ export default function App() {
           onClick={() => setActiveTab('explore')}
           id="btn-rail-explore"
         >
-          α
+          <img src="/assets/amino/amino_logo_white.png" alt="AltAmino" style={{ width: '28px', height: '28px', objectFit: 'contain' }} />
         </div>
         <div className="rail-divider"></div>
 
@@ -294,7 +294,11 @@ export default function App() {
               onClick={handleCheckIn}
               title={user.hasCheckedInToday ? "Checked in for today!" : "Check in to earn reputation and coins!"}
             >
-              <CheckCircle2 size={16} />
+              <img 
+                src="/assets/amino/ic_check_in_streak_checked.png" 
+                alt="" 
+                style={{ width: '18px', height: '18px', objectFit: 'contain' }} 
+              />
               {user.hasCheckedInToday ? `Streak: ${user.streak}d` : "Daily Check-In"}
             </button>
 
@@ -305,7 +309,11 @@ export default function App() {
               onClick={() => setIsProfileOpen(true)}
               title="AltAmino Wallet Balance"
             >
-              <Coins size={16} />
+              <img 
+                src="/assets/amino/amino_coin_small.png" 
+                alt="Coins" 
+                style={{ width: '18px', height: '18px', objectFit: 'contain' }} 
+              />
               <span>{user.coins.toLocaleString()}</span>
             </div>
 
@@ -315,7 +323,14 @@ export default function App() {
               className="user-profile-pill" 
               onClick={() => setIsProfileOpen(true)}
             >
-              <img className="pill-avatar" src={user.avatar} alt={user.nickname} />
+              <div style={{ position: 'relative', width: '32px', height: '32px' }}>
+                <img className="pill-avatar" src={user.avatar} alt={user.nickname} />
+                <img 
+                  src="/assets/amino/ic_default_avatar_frame.png" 
+                  alt="" 
+                  style={{ position: 'absolute', inset: '-5px', width: '42px', height: '42px', pointerEvents: 'none' }} 
+                />
+              </div>
               <span style={{ fontSize: '13px', fontWeight: 600 }}>{user.nickname}</span>
               <span className="pill-level">LV {user.level}</span>
             </div>
@@ -465,7 +480,7 @@ export default function App() {
                         }}
                         id={`tip-btn-${blog.id}`}
                       >
-                        <Coins size={14} /> Tip Coins
+                        <img src="/assets/amino/amino_coin_small.png" alt="" style={{ width: '16px', height: '16px' }} /> Tip Coins
                       </button>
                     </div>
                   </article>
@@ -627,6 +642,23 @@ export default function App() {
               <span className="modal-title">Create Blog Post</span>
               <button className="modal-close-btn" onClick={() => setIsCreateOpen(false)}>✕</button>
             </div>
+
+            {/* Official Amino Compose Action Buttons Row */}
+            <div style={{ display: 'flex', justifyContent: 'space-around', padding: '16px 20px', background: 'rgba(255, 255, 255, 0.02)', borderBottom: '1px solid var(--border-subtle)' }}>
+              {[
+                { name: 'Blog', img: '/assets/amino/compose_button_blog.png', active: true },
+                { name: 'Poll', img: '/assets/amino/compose_button_poll.png' },
+                { name: 'Quiz', img: '/assets/amino/compose_button_quiz.png' },
+                { name: 'Chat', img: '/assets/amino/compose_button_chat.png' },
+                { name: 'Link', img: '/assets/amino/compose_button_link.png' },
+              ].map(opt => (
+                <div key={opt.name} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                  <img src={opt.img} alt={opt.name} style={{ width: '44px', height: '44px', transition: 'transform 0.2s' }} />
+                  <span style={{ fontSize: '11px', fontWeight: 600, color: opt.active ? '#a5b4fc' : 'var(--text-muted)' }}>{opt.name}</span>
+                </div>
+              ))}
+            </div>
+
             <form onSubmit={handleCreatePost} className="modal-body">
               <input 
                 id="input-post-title"
@@ -671,7 +703,14 @@ export default function App() {
         <div className="modal-backdrop" onClick={() => setIsProfileOpen(false)}>
           <div className="modal-window" onClick={e => e.stopPropagation()} style={{ maxWidth: '480px' }}>
             <div className="profile-hero">
-              <img className="profile-avatar-large" src={user.avatar} alt="" />
+              <div style={{ position: 'absolute', bottom: '-38px', left: '24px', width: '76px', height: '76px' }}>
+                <img className="profile-avatar-large" src={user.avatar} alt="" style={{ position: 'static' }} />
+                <img 
+                  src="/assets/amino/ic_default_avatar_frame.png" 
+                  alt="" 
+                  style={{ position: 'absolute', inset: '-12px', width: '100px', height: '100px', pointerEvents: 'none' }} 
+                />
+              </div>
             </div>
             <div className="profile-info-section">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -704,16 +743,18 @@ export default function App() {
 
               {/* Coins & Streak Stats */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-                <div className="glass-panel" style={{ padding: '12px', textAlign: 'center' }}>
+                <div className="glass-panel" style={{ padding: '12px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>AltAmino Coins</div>
-                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#fbbf24', marginTop: '4px' }}>
-                    🪙 {user.coins.toLocaleString()}
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#fbbf24', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <img src="/assets/amino/amino_coin_small.png" style={{ width: '20px', height: '20px' }} alt="" />
+                    {user.coins.toLocaleString()}
                   </div>
                 </div>
-                <div className="glass-panel" style={{ padding: '12px', textAlign: 'center' }}>
+                <div className="glass-panel" style={{ padding: '12px', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                   <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>Check-In Streak</div>
-                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#34d399', marginTop: '4px' }}>
-                    🔥 {user.streak} Days
+                  <div style={{ fontSize: '18px', fontWeight: 800, color: '#34d399', marginTop: '4px', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <img src="/assets/amino/ic_check_in_streak_checked.png" style={{ width: '20px', height: '20px' }} alt="" />
+                    {user.streak} Days
                   </div>
                 </div>
               </div>
@@ -735,12 +776,20 @@ export default function App() {
         <div className="modal-backdrop" onClick={() => setIsTipOpen(false)}>
           <div className="modal-window" onClick={e => e.stopPropagation()} style={{ maxWidth: '420px' }}>
             <div className="modal-header">
-              <span className="modal-title">Tip Creator Coins 🪙</span>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                <img src="/assets/amino/ic_chat_input_tip.png" alt="" style={{ width: '24px', height: '24px' }} />
+                <span className="modal-title">Tip Creator Coins</span>
+              </div>
               <button className="modal-close-btn" onClick={() => setIsTipOpen(false)}>✕</button>
             </div>
             <div className="modal-body" style={{ textAlign: 'center' }}>
+              <img 
+                src="/assets/amino/amino_coin_big.png" 
+                alt="Coins" 
+                style={{ width: '64px', height: '64px', margin: '0 auto 8px', filter: 'drop-shadow(0 6px 16px rgba(245, 158, 11, 0.4))' }} 
+              />
               <p style={{ fontSize: '13px', color: 'var(--text-secondary)' }}>
-                Support the author of "{selectedBlogForTip?.title}". Coins are directly rewarded from your wallet!
+                Reward the author of <strong>"{selectedBlogForTip?.title}"</strong> directly with Amino Coins!
               </p>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '10px', margin: '14px 0' }}>
                 {[5, 10, 25, 50, 100, 250].map(amt => (
@@ -749,19 +798,24 @@ export default function App() {
                     onClick={() => handleTip(amt)}
                     className="glass-panel"
                     style={{
-                      padding: '14px 8px',
+                      padding: '12px 8px',
                       color: '#fbbf24',
                       fontWeight: 700,
                       cursor: 'pointer',
-                      fontSize: '15px'
+                      fontSize: '14px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px'
                     }}
                   >
+                    <img src="/assets/amino/amino_coin_small.png" style={{ width: '14px', height: '14px' }} alt="" />
                     +{amt}
                   </button>
                 ))}
               </div>
               <div style={{ fontSize: '12px', color: 'var(--text-muted)' }}>
-                Your current balance: <strong>{user.coins} Coins</strong>
+                Your wallet: <strong>{user.coins} Coins</strong>
               </div>
             </div>
           </div>
