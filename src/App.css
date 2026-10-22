@@ -804,3 +804,108 @@
   background: var(--gradient-brand);
   border-radius: var(--radius-full);
 }
+
+/* Audio Note Player */
+.audio-note-bubble {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 8px 14px;
+  border-radius: 20px;
+  min-width: 190px;
+}
+.audio-play-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--primary);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(99, 102, 241, 0.4);
+  transition: transform 0.15s ease;
+}
+.audio-play-btn:hover {
+  transform: scale(1.1);
+}
+.audio-wave-bars {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 24px;
+  flex: 1;
+}
+.audio-wave-bar {
+  width: 3px;
+  border-radius: 2px;
+  background: #a5b4fc;
+}
+
+/* Sticker in Chat */
+.chat-sticker-img {
+  width: 100px;
+  height: 100px;
+  object-fit: cover;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+}
+.chat-sticker-img:hover {
+  transform: scale(1.08);
+}
+
+/* Comments Section */
+.comments-section {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.comment-card {
+  display: flex;
+  gap: 10px;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  padding: 10px 14px;
+  border-radius: 12px;
+}
+.comment-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+}
+.comment-content {
+  flex: 1;
+}
+.comment-author-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 2px;
+}
+.comment-text {
+  font-size: 13px;
+  color: var(--text-primary);
+  line-height: 1.4;
+}
+
+/* Pulse Keyframes */
+@keyframes pulseGlow {
+  0% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.06); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.8; }
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
