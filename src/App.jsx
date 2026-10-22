@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Compass, 
   MessageSquare, 
@@ -18,7 +18,15 @@ import {
   ExternalLink,
   ChevronRight,
   TrendingUp,
-  Award
+  Award,
+  Trophy,
+  ShoppingBag,
+  Shield,
+  Radio,
+  Play,
+  Pause,
+  LogIn,
+  Mic
 } from 'lucide-react';
 import { 
   initialCommunities, 
@@ -27,12 +35,21 @@ import {
   initialMessages, 
   defaultUser 
 } from './services/api';
+import { parseAminoText } from './utils/aminoParser';
+import { wsClient } from './services/websocket';
+import AuthModal from './components/AuthModal';
+import PollWidget from './components/PollWidget';
+import StickerPicker from './components/StickerPicker';
+import StoreView from './components/StoreView';
+import LeaderboardsView from './components/LeaderboardsView';
+import VoiceStageView from './components/VoiceStageView';
+import ModCenterModal from './components/ModCenterModal';
 import './App.css';
 
 export default function App() {
   const [communities, setCommunities] = useState(initialCommunities);
   const [activeCommunity, setActiveCommunity] = useState(initialCommunities[0]);
-  const [activeTab, setActiveTab] = useState('feed'); // 'feed' | 'chats' | 'explore'
+  const [activeTab, setActiveTab] = useState('feed'); // 'feed' | 'chats' | 'voicestage' | 'leaderboards' | 'store' | 'explore'
   const [feedType, setFeedType] = useState('featured'); // 'featured' | 'latest' | 'following'
   
   const [blogs, setBlogs] = useState(initialBlogs);
@@ -40,22 +57,60 @@ export default function App() {
   const [activeChat, setActiveChat] = useState(initialChats[0]);
   const [messages, setMessages] = useState(initialMessages);
   const [chatInput, setChatInput] = useState('');
+  const [isStickerPickerOpen, setIsStickerPickerOpen] = useState(false);
+  const [playingAudioId, setPlayingAudioId] = useState(null);
   
   const [user, setUser] = useState(defaultUser);
   const [checkInReward, setCheckInReward] = useState(null);
   
+  // Comments UI state
+  const [expandedCommentBlogId, setExpandedCommentBlogId] = useState(null);
+  const [commentInputs, setCommentInputs] = useState({});
+
   // Modals
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
   const [isTipOpen, setIsTipOpen] = useState(false);
   const [selectedBlogForTip, setSelectedBlogForTip] = useState(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isModOpen, setIsModOpen] = useState(false);
   const [serverUrl, setServerUrl] = useState('http://localhost:33333/api/v1');
 
   // New Blog form
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
   const [newTag, setNewTag] = useState('');
+
+  // 1. WebSocket Live Messaging Adapter Connection
+  useEffect(() => {
+    // Connect to WebSocket gateway
+    wsClient.connect("ws://localhost:33334", { uid: user.uid, sid: user.sid });
+
+    // Handle real-time incoming messages
+    const unsubscribeMsg = wsClient.on('message', ({ chatId, message }) => {
+      setMessages(prev => ({
+        ...prev,
+        [chatId]: [...(prev[chatId] || []), message]
+      }));
+    });
+
+    return () => {
+      if (unsubscribeMsg) unsubscribeMsg();
+    };
+  }, [user.uid, user.sid]);
+
+  // Audio Note Playback Simulation
+  const handleToggleAudio = (msgId) => {
+    if (playingAudioId === msgId) {
+      setPlayingAudioId(null);
+    } else {
+      setPlayingAudioId(msgId);
+      setTimeout(() => {
+        setPlayingAudioId(null);
+      }, 5000);
+    }
+  };
 
   // Daily Check-In Logic
   const handleCheckIn = () => {
@@ -108,7 +163,7 @@ export default function App() {
     setIsTipOpen(false);
   };
 
-  // Send Chat Message
+  // Send Text Chat Message
   const handleSendMessage = (e) => {
     e?.preventDefault();
     if (!chatInput.trim()) return;
@@ -119,7 +174,7 @@ export default function App() {
       authorName: user.nickname,
       authorAvatar: user.avatar,
       authorLevel: user.level,
-      authorRole: "Member",
+      authorRole: user.role || "Member",
       content: chatInput.trim(),
       timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       isMine: true
@@ -131,33 +186,68 @@ export default function App() {
       [currentChatId]: [...(prev[currentChatId] || []), newMsg]
     }));
 
-    setChatInput('');
+    // Send packet via WebSocket adapter
+    wsClient.sendChatMessage(currentChatId, chatInput.trim());
 
-    // Realistic community member simulated reply
-    setTimeout(() => {
-      const botReplies = [
-        "Welcome to the room! Make yourself at home.",
-        "Glad to see you on the web client! 🚀",
-        "Checked the latest community feed? Great discussions today.",
-        "Remember to tip great posts with daily check-in coins! 🪙"
-      ];
-      const randomReply = botReplies[Math.floor(Math.random() * botReplies.length)];
-      const botMsg = {
-        id: `bot-msg-${Date.now()}`,
-        authorId: "member-bot",
-        authorName: "Aiko_Chii",
-        authorAvatar: "https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=80&auto=format&fit=crop&q=80",
-        authorLevel: 13,
-        authorRole: "Curator",
-        content: randomReply,
-        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-        isMine: false
-      };
-      setMessages(prev => ({
-        ...prev,
-        [currentChatId]: [...(prev[currentChatId] || []), botMsg]
-      }));
-    }, 1200);
+    setChatInput('');
+    setIsStickerPickerOpen(false);
+  };
+
+  // Send Sticker Chat Message
+  const handleSendSticker = (sticker) => {
+    const currentChatId = activeChat.id;
+    const stickerMsg = {
+      id: `stk-${Date.now()}`,
+      authorId: user.uid,
+      authorName: user.nickname,
+      authorAvatar: user.avatar,
+      authorLevel: user.level,
+      authorRole: user.role || "Member",
+      type: "sticker",
+      stickerUrl: sticker.url,
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      isMine: true
+    };
+
+    setMessages(prev => ({
+      ...prev,
+      [currentChatId]: [...(prev[currentChatId] || []), stickerMsg]
+    }));
+
+    wsClient.sendChatMessage(currentChatId, sticker.name, 3, sticker.url);
+    setIsStickerPickerOpen(false);
+  };
+
+  // Submit Blog Comment
+  const handleAddComment = (blogId) => {
+    const text = commentInputs[blogId];
+    if (!text || !text.trim()) return;
+
+    const newComment = {
+      id: `c-${Date.now()}`,
+      author: {
+        nickname: user.nickname,
+        avatar: user.avatar,
+        level: user.level,
+        role: user.role || "Member"
+      },
+      content: text.trim(),
+      time: "Just now",
+      likes: 0
+    };
+
+    setBlogs(prev => prev.map(b => {
+      if (b.id === blogId) {
+        return {
+          ...b,
+          commentsCount: (b.commentsCount || 0) + 1,
+          comments: [...(b.comments || []), newComment]
+        };
+      }
+      return b;
+    }));
+
+    setCommentInputs(prev => ({ ...prev, [blogId]: '' }));
   };
 
   // Create Blog
@@ -176,15 +266,16 @@ export default function App() {
         aminoId: user.aminoId,
         avatar: user.avatar,
         level: user.level,
-        role: "Member",
-        frame: null
+        role: user.role || "Member",
+        frame: user.equippedFrame ? user.equippedFrame.frameAsset : null
       },
       createdTime: "Just now",
       likesCount: 0,
       hasLiked: false,
       commentsCount: 0,
       mediaList: [],
-      tags: newTag ? newTag.split(',').map(t => t.trim()) : ["General"]
+      tags: newTag ? newTag.split(',').map(t => t.trim()) : ["General"],
+      comments: []
     };
 
     setBlogs([newPost, ...blogs]);
@@ -192,6 +283,15 @@ export default function App() {
     setNewContent('');
     setNewTag('');
     setIsCreateOpen(false);
+  };
+
+  // Moderation Actions
+  const handleFeatureBlog = (blogId, days) => {
+    setBlogs(prev => prev.map(b => b.id === blogId ? { ...b, isFeatured: true, featureDays: days } : b));
+  };
+
+  const handleDisableBlog = (blogId) => {
+    setBlogs(prev => prev.filter(b => b.id !== blogId));
   };
 
   // Filter blogs by active community
@@ -228,6 +328,7 @@ export default function App() {
         ))}
 
         <div className="rail-divider"></div>
+
         <button 
           className="rail-action-btn" 
           title="Explore Communities" 
@@ -236,6 +337,34 @@ export default function App() {
         >
           <Compass size={22} />
         </button>
+
+        <button 
+          className="rail-action-btn" 
+          title="Avatar & Bubble Store" 
+          onClick={() => setActiveTab('store')}
+          id="btn-store-tab"
+        >
+          <ShoppingBag size={20} color="#f59e0b" />
+        </button>
+
+        <button 
+          className="rail-action-btn" 
+          title="Community Leaderboards" 
+          onClick={() => setActiveTab('leaderboards')}
+          id="btn-leaderboards-tab"
+        >
+          <Trophy size={20} color="#818cf8" />
+        </button>
+
+        <button 
+          className="rail-action-btn" 
+          title="Curator Moderation Center" 
+          onClick={() => setIsModOpen(true)}
+          id="btn-mod-center"
+        >
+          <Shield size={20} color="#10b981" />
+        </button>
+
         <button 
           className="rail-action-btn" 
           title="Server Connection Settings" 
@@ -267,21 +396,35 @@ export default function App() {
               className={`nav-tab-btn ${activeTab === 'feed' ? 'active' : ''}`}
               onClick={() => setActiveTab('feed')}
             >
-              <Flame size={16} /> Community Feed
+              <Flame size={16} /> Feed
             </button>
             <button 
               id="tab-chats"
               className={`nav-tab-btn ${activeTab === 'chats' ? 'active' : ''}`}
               onClick={() => setActiveTab('chats')}
             >
-              <MessageSquare size={16} /> Public Chats
+              <MessageSquare size={16} /> Chats
             </button>
             <button 
-              id="tab-explore"
-              className={`nav-tab-btn ${activeTab === 'explore' ? 'active' : ''}`}
-              onClick={() => setActiveTab('explore')}
+              id="tab-voicestage"
+              className={`nav-tab-btn ${activeTab === 'voicestage' ? 'active' : ''}`}
+              onClick={() => setActiveTab('voicestage')}
             >
-              <Compass size={16} /> Explore All
+              <Radio size={16} /> Voice Stage
+            </button>
+            <button 
+              id="tab-leaderboards"
+              className={`nav-tab-btn ${activeTab === 'leaderboards' ? 'active' : ''}`}
+              onClick={() => setActiveTab('leaderboards')}
+            >
+              <Trophy size={16} /> Leaderboards
+            </button>
+            <button 
+              id="tab-store"
+              className={`nav-tab-btn ${activeTab === 'store' ? 'active' : ''}`}
+              onClick={() => setActiveTab('store')}
+            >
+              <ShoppingBag size={16} /> Store
             </button>
           </nav>
 
@@ -306,8 +449,8 @@ export default function App() {
             <div 
               id="btn-coins-wallet"
               className="coins-badge" 
-              onClick={() => setIsProfileOpen(true)}
-              title="AltAmino Wallet Balance"
+              onClick={() => setActiveTab('store')}
+              title="Open AltAmino Store & Wallet"
             >
               <img 
                 src="/assets/amino/amino_coin_small.png" 
@@ -317,7 +460,28 @@ export default function App() {
               <span>{user.coins.toLocaleString()}</span>
             </div>
 
-            {/* User Profile Pill */}
+            {/* Auth / Login Trigger */}
+            <button
+              onClick={() => setIsAuthOpen(true)}
+              style={{
+                background: 'rgba(255, 255, 255, 0.05)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                color: 'var(--text-secondary)',
+                padding: '6px 10px',
+                borderRadius: '10px',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '12px',
+                fontWeight: 600
+              }}
+              title="Account Auth & Switcher"
+            >
+              <LogIn size={14} /> Account
+            </button>
+
+            {/* User Profile Pill with Equipped Avatar Frame */}
             <div 
               id="btn-user-profile"
               className="user-profile-pill" 
@@ -325,11 +489,22 @@ export default function App() {
             >
               <div style={{ position: 'relative', width: '32px', height: '32px' }}>
                 <img className="pill-avatar" src={user.avatar} alt={user.nickname} />
-                <img 
-                  src="/assets/amino/ic_default_avatar_frame.png" 
-                  alt="" 
-                  style={{ position: 'absolute', inset: '-5px', width: '42px', height: '42px', pointerEvents: 'none' }} 
-                />
+                {user.equippedFrame ? (
+                  <div style={{
+                    position: 'absolute',
+                    inset: '-4px',
+                    borderRadius: '50%',
+                    border: `2px solid ${user.equippedFrame.frameColor || '#818cf8'}`,
+                    boxShadow: `0 0 10px ${user.equippedFrame.glowColor || 'rgba(99,102,241,0.5)'}`,
+                    pointerEvents: 'none'
+                  }} />
+                ) : (
+                  <img 
+                    src="/assets/amino/ic_default_avatar_frame.png" 
+                    alt="" 
+                    style={{ position: 'absolute', inset: '-5px', width: '42px', height: '42px', pointerEvents: 'none' }} 
+                  />
+                )}
               </div>
               <span style={{ fontSize: '13px', fontWeight: 600 }}>{user.nickname}</span>
               <span className="pill-level">LV {user.level}</span>
@@ -415,7 +590,7 @@ export default function App() {
                 </button>
               </div>
 
-              {/* Blog Posts Stream */}
+              {/* Blog Posts Stream with BBCode and Polls */}
               {communityBlogs.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)' }}>
                   <p>No blogs published yet in this community. Be the first to post!</p>
@@ -427,22 +602,55 @@ export default function App() {
                       <div className="author-meta">
                         <div className="author-avatar-wrap">
                           <img className="author-avatar" src={blog.author.avatar} alt="" />
+                          {blog.author.frame && (
+                            <img 
+                              src={blog.author.frame} 
+                              alt="" 
+                              style={{ position: 'absolute', inset: '-6px', width: '52px', height: '52px', pointerEvents: 'none' }} 
+                            />
+                          )}
                         </div>
                         <div>
                           <div className="author-name-row">
                             <span className="author-name">{blog.author.nickname}</span>
                             <span className="pill-level">LV {blog.author.level}</span>
-                            {blog.author.role !== 'Member' && (
+                            {blog.author.role && blog.author.role !== 'Member' && (
                               <span className="author-role-badge">{blog.author.role}</span>
                             )}
                           </div>
                           <span className="author-post-time">{blog.createdTime}</span>
                         </div>
                       </div>
+
+                      {blog.isFeatured && (
+                        <span style={{
+                          background: 'rgba(245, 158, 11, 0.2)',
+                          color: '#f59e0b',
+                          border: '1px solid rgba(245, 158, 11, 0.4)',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          padding: '3px 8px',
+                          borderRadius: '8px'
+                        }}>
+                          ★ FEATURED
+                        </span>
+                      )}
                     </div>
 
                     <h2 className="blog-title">{blog.title}</h2>
-                    <p className="blog-body-text">{blog.content}</p>
+                    
+                    {/* Rich BBCode Formatted Body */}
+                    <div className="blog-body-text">
+                      {parseAminoText(blog.content)}
+                    </div>
+
+                    {/* Interactive Poll Widget */}
+                    {blog.poll && (
+                      <PollWidget 
+                        poll={blog.poll} 
+                        onVote={(pollId, optId) => console.log('Vote cast on poll:', pollId, optId)} 
+                      />
+                    )}
 
                     {blog.mediaList && blog.mediaList.length > 0 && (
                       <div className="blog-media-preview">
@@ -466,9 +674,12 @@ export default function App() {
                           <Heart size={16} fill={blog.hasLiked ? '#f43f5e' : 'none'} />
                           <span>{blog.likesCount}</span>
                         </button>
-                        <button className="interactive-action-btn">
+                        <button 
+                          className="interactive-action-btn"
+                          onClick={() => setExpandedCommentBlogId(expandedCommentBlogId === blog.id ? null : blog.id)}
+                        >
                           <MessageSquare size={16} />
-                          <span>{blog.commentsCount}</span>
+                          <span>{blog.commentsCount || 0} Comments</span>
                         </button>
                       </div>
 
@@ -483,6 +694,62 @@ export default function App() {
                         <img src="/assets/amino/amino_coin_small.png" alt="" style={{ width: '16px', height: '16px' }} /> Tip Coins
                       </button>
                     </div>
+
+                    {/* Expandable Comments Section */}
+                    {expandedCommentBlogId === blog.id && (
+                      <div className="comments-section">
+                        <div style={{ display: 'flex', gap: '8px' }}>
+                          <input
+                            type="text"
+                            placeholder="Add a comment with Amino formatting..."
+                            value={commentInputs[blog.id] || ''}
+                            onChange={(e) => setCommentInputs({ ...commentInputs, [blog.id]: e.target.value })}
+                            onKeyDown={(e) => e.key === 'Enter' && handleAddComment(blog.id)}
+                            style={{
+                              flex: 1,
+                              background: 'rgba(255, 255, 255, 0.05)',
+                              border: '1px solid rgba(255, 255, 255, 0.1)',
+                              borderRadius: '10px',
+                              padding: '8px 14px',
+                              color: 'var(--text-primary)',
+                              fontSize: '13px'
+                            }}
+                          />
+                          <button
+                            onClick={() => handleAddComment(blog.id)}
+                            style={{
+                              background: 'var(--primary)',
+                              border: 'none',
+                              color: '#fff',
+                              padding: '8px 16px',
+                              borderRadius: '10px',
+                              fontWeight: 700,
+                              fontSize: '12px',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            Post
+                          </button>
+                        </div>
+
+                        {/* Existing Comments */}
+                        {(blog.comments || []).map(cmt => (
+                          <div key={cmt.id} className="comment-card">
+                            <img src={cmt.author.avatar} alt="" className="comment-avatar" />
+                            <div className="comment-content">
+                              <div className="comment-author-row">
+                                <span style={{ fontSize: '13px', fontWeight: 700, color: '#fff' }}>{cmt.author.nickname}</span>
+                                <span className="pill-level" style={{ fontSize: '9px', padding: '0 4px' }}>LV {cmt.author.level}</span>
+                                <span style={{ fontSize: '11px', color: 'var(--text-muted)', marginLeft: 'auto' }}>{cmt.time}</span>
+                              </div>
+                              <div className="comment-text">
+                                {parseAminoText(cmt.content)}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </article>
                 ))
               )}
@@ -506,13 +773,22 @@ export default function App() {
                       key={room.id}
                       id={`room-${room.id}`}
                       className={`chat-room-card ${activeChat?.id === room.id ? 'active' : ''}`}
-                      onClick={() => setActiveChat(room)}
+                      onClick={() => {
+                        setActiveChat(room);
+                        if (room.channelType === 1) {
+                          setActiveTab('voicestage');
+                        }
+                      }}
                     >
                       <img className="room-avatar" src={room.icon} alt="" />
                       <div className="room-text-info">
                         <div className="room-title-row">
                           <span className="room-title">{room.title}</span>
-                          {room.channelType === 1 && <span className="room-badge">Voice</span>}
+                          {room.channelType === 1 && (
+                            <span className="room-badge" style={{ background: 'rgba(239, 68, 68, 0.2)', color: '#f87171' }}>
+                              Voice
+                            </span>
+                          )}
                         </div>
                         <div className="room-snippet">
                           {room.lastMessage?.content || "No messages yet"}
@@ -534,6 +810,27 @@ export default function App() {
                       </div>
                     </div>
                   </div>
+
+                  {activeChat?.channelType === 1 && (
+                    <button
+                      onClick={() => setActiveTab('voicestage')}
+                      style={{
+                        background: 'rgba(239, 68, 68, 0.2)',
+                        border: '1px solid #ef4444',
+                        color: '#f87171',
+                        padding: '6px 14px',
+                        borderRadius: '10px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px'
+                      }}
+                    >
+                      <Radio size={14} /> Open Voice Room
+                    </button>
+                  )}
                 </div>
 
                 {/* Messages stream */}
@@ -546,7 +843,12 @@ export default function App() {
                       {!msg.isMine && (
                         <img className="message-avatar" src={msg.authorAvatar} alt="" />
                       )}
-                      <div className="message-bubble">
+                      
+                      {/* Message Bubble supporting Custom Store Bubbles, Stickers, and Audio Notes */}
+                      <div 
+                        className="message-bubble"
+                        style={msg.isMine && user.equippedBubble ? user.equippedBubble.bubbleStyle : {}}
+                      >
                         {!msg.isMine && (
                           <div className="message-sender-name">
                             {msg.authorName}
@@ -555,15 +857,77 @@ export default function App() {
                             </span>
                           </div>
                         )}
-                        <div className="message-text">{msg.content}</div>
+
+                        {/* Text message */}
+                        {!msg.type && (
+                          <div className="message-text">{msg.content}</div>
+                        )}
+
+                        {/* Sticker message */}
+                        {msg.type === 'sticker' && (
+                          <img src={msg.stickerUrl} alt="Sticker" className="chat-sticker-img" />
+                        )}
+
+                        {/* Audio Note message */}
+                        {msg.type === 'audioNote' && (
+                          <div className="audio-note-bubble">
+                            <button
+                              className="audio-play-btn"
+                              onClick={() => handleToggleAudio(msg.id)}
+                            >
+                              {playingAudioId === msg.id ? <Pause size={14} /> : <Play size={14} />}
+                            </button>
+                            <div className="audio-wave-bars">
+                              {[12, 22, 16, 26, 18, 10, 24, 14, 20].map((h, i) => (
+                                <div
+                                  key={i}
+                                  className="audio-wave-bar"
+                                  style={{
+                                    height: `${playingAudioId === msg.id ? (h + Math.sin(Date.now() / 200 + i) * 6) : h}px`,
+                                    background: playingAudioId === msg.id ? '#34d399' : '#a5b4fc'
+                                  }}
+                                />
+                              ))}
+                            </div>
+                            <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                              0:0{msg.audioDuration || 6}
+                            </span>
+                          </div>
+                        )}
+
                         <div className="message-time">{msg.timestamp}</div>
                       </div>
                     </div>
                   ))}
                 </div>
 
-                {/* Input box */}
-                <form className="chat-input-bar" onSubmit={handleSendMessage}>
+                {/* Input box with Sticker Picker toggle */}
+                <form className="chat-input-bar" onSubmit={handleSendMessage} style={{ position: 'relative' }}>
+                  {isStickerPickerOpen && (
+                    <StickerPicker
+                      onSelectSticker={handleSendSticker}
+                      onClose={() => setIsStickerPickerOpen(false)}
+                    />
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setIsStickerPickerOpen(!isStickerPickerOpen)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: isStickerPickerOpen ? '#f59e0b' : 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '4px'
+                    }}
+                    title="Amino Sticker Vault"
+                  >
+                    <Smile size={22} />
+                  </button>
+
                   <input 
                     id="chat-input"
                     type="text" 
@@ -580,7 +944,32 @@ export default function App() {
             </div>
           )}
 
-          {/* TAB 3: EXPLORE ALL COMMUNITIES */}
+          {/* TAB 3: VOICE STAGE & SCREENING ROOM */}
+          {activeTab === 'voicestage' && (
+            <VoiceStageView
+              chat={activeChat}
+              user={user}
+              onBack={() => setActiveTab('chats')}
+            />
+          )}
+
+          {/* TAB 4: LEADERBOARDS */}
+          {activeTab === 'leaderboards' && (
+            <LeaderboardsView
+              activeCommunity={activeCommunity}
+              user={user}
+            />
+          )}
+
+          {/* TAB 5: STORE (AVATAR FRAMES & CHAT BUBBLES) */}
+          {activeTab === 'store' && (
+            <StoreView
+              user={user}
+              onUpdateUser={(updates) => setUser(prev => ({ ...prev, ...updates }))}
+            />
+          )}
+
+          {/* TAB 6: EXPLORE ALL COMMUNITIES */}
           {activeTab === 'explore' && (
             <div className="feed-container">
               <div style={{ marginBottom: '16px' }}>
@@ -672,7 +1061,7 @@ export default function App() {
               <textarea 
                 id="input-post-content"
                 className="form-input form-textarea" 
-                placeholder="Write your story, review, or thoughts..."
+                placeholder="Write your story, review, or thoughts... (supports [B] Bold, [C] Center, [I] Italic)"
                 value={newContent}
                 onChange={e => setNewContent(e.target.value)}
                 required
@@ -705,11 +1094,22 @@ export default function App() {
             <div className="profile-hero">
               <div style={{ position: 'absolute', bottom: '-38px', left: '24px', width: '76px', height: '76px' }}>
                 <img className="profile-avatar-large" src={user.avatar} alt="" style={{ position: 'static' }} />
-                <img 
-                  src="/assets/amino/ic_default_avatar_frame.png" 
-                  alt="" 
-                  style={{ position: 'absolute', inset: '-12px', width: '100px', height: '100px', pointerEvents: 'none' }} 
-                />
+                {user.equippedFrame ? (
+                  <div style={{
+                    position: 'absolute',
+                    inset: '-8px',
+                    borderRadius: '50%',
+                    border: `3px solid ${user.equippedFrame.frameColor || '#818cf8'}`,
+                    boxShadow: `0 0 16px ${user.equippedFrame.glowColor || 'rgba(99,102,241,0.6)'}`,
+                    pointerEvents: 'none'
+                  }} />
+                ) : (
+                  <img 
+                    src="/assets/amino/ic_default_avatar_frame.png" 
+                    alt="" 
+                    style={{ position: 'absolute', inset: '-12px', width: '100px', height: '100px', pointerEvents: 'none' }} 
+                  />
+                )}
               </div>
             </div>
             <div className="profile-info-section">
@@ -867,6 +1267,22 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* MODAL 5: REST Auth & Session Manager */}
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+        onLoginSuccess={(authData) => setUser(prev => ({ ...prev, ...authData }))}
+      />
+
+      {/* MODAL 6: Moderation Center for Leaders & Curators */}
+      <ModCenterModal
+        isOpen={isModOpen}
+        onClose={() => setIsModOpen(false)}
+        blogs={communityBlogs}
+        onFeatureBlog={handleFeatureBlog}
+        onDisableBlog={handleDisableBlog}
+      />
     </div>
   );
 }
