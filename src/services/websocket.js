@@ -1,5 +1,6 @@
 // AltAmino Real-time WebSocket Gateway Service
 // Implements the NDC WebSocket Protocol with auto-reconnect and offline mock fallback
+import { getOrCreateDeviceId } from '../utils/deviceGenerator';
 
 class AminoWebSocketClient {
   constructor() {
@@ -16,15 +17,15 @@ class AminoWebSocketClient {
 
   /**
    * Connect to AltAmino WebSocket gateway
-   * @param {string} serverBase - e.g. "localhost:33334" or "ws://localhost:33334"
+   * @param {string} serverBase - e.g. "wss://ws1.altamino.top" or "ws://localhost:33334"
    * @param {Object} auth - { uid, sid, deviceId }
    */
-  connect(serverBase = "ws://localhost:33334", auth = {}) {
+  connect(serverBase = "wss://ws1.altamino.top", auth = {}) {
     if (this.ws && (this.ws.readyState === WebSocket.OPEN || this.ws.readyState === WebSocket.CONNECTING)) {
       return;
     }
 
-    const deviceId = auth.deviceId || "220101WEB" + Math.random().toString(36).substring(2, 10).toUpperCase();
+    const deviceId = auth.deviceId || getOrCreateDeviceId();
     const timestamp = Date.now();
     const signbody = encodeURIComponent(`${deviceId}|${timestamp}`);
 

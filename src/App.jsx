@@ -75,17 +75,17 @@ export default function App() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isModOpen, setIsModOpen] = useState(false);
-  const [serverUrl, setServerUrl] = useState('http://localhost:33333/api/v1');
+  const [serverUrl, setServerUrl] = useState('/api-live');
 
   // New Blog form
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
   const [newTag, setNewTag] = useState('');
 
-  // 1. WebSocket Live Messaging Adapter Connection
+  // 1. WebSocket Live Messaging Adapter Connection (AltAmino Live Network)
   useEffect(() => {
-    // Connect to WebSocket gateway
-    wsClient.connect("ws://localhost:33334", { uid: user.uid, sid: user.sid });
+    // Connect to live AltAmino WebSocket gateway wss://ws1.altamino.top
+    wsClient.connect("wss://ws1.altamino.top", { uid: user.uid, sid: user.sid });
 
     // Handle real-time incoming messages
     const unsubscribeMsg = wsClient.on('message', ({ chatId, message }) => {
@@ -1240,20 +1240,27 @@ export default function App() {
                 value={serverUrl}
                 onChange={e => setServerUrl(e.target.value)}
               />
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
                 <button 
                   className="nav-tab-btn" 
-                  style={{ border: '1px solid var(--border-subtle)', flex: 1 }}
-                  onClick={() => setServerUrl('http://localhost:33333/api/v1')}
+                  style={{ border: '1px solid var(--border-subtle)', fontSize: '11px', padding: '6px 4px' }}
+                  onClick={() => setServerUrl('/api-live')}
                 >
-                  Local Backend
+                  Live AltAmino (Proxy)
                 </button>
                 <button 
                   className="nav-tab-btn" 
-                  style={{ border: '1px solid var(--border-subtle)', flex: 1 }}
-                  onClick={() => setServerUrl('https://service.altamino.top/api/v1')}
+                  style={{ border: '1px solid var(--border-subtle)', fontSize: '11px', padding: '6px 4px' }}
+                  onClick={() => setServerUrl('https://dev-service.altamino.top/api/v1')}
                 >
-                  Public AltAmino Server
+                  Live AltAmino (Direct)
+                </button>
+                <button 
+                  className="nav-tab-btn" 
+                  style={{ border: '1px solid var(--border-subtle)', fontSize: '11px', padding: '6px 4px' }}
+                  onClick={() => setServerUrl('http://127.0.0.1:19871/api/v1')}
+                >
+                  Local Docker (:19871)
                 </button>
               </div>
               <button 

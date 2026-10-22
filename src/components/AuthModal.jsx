@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { LogIn, UserPlus, ShieldCheck, Sparkles, Key, Mail, User } from 'lucide-react';
+import { LogIn, UserPlus, ShieldCheck, Sparkles, Key, Mail, User, Globe } from 'lucide-react';
+import { getLiveHeaders, getOrCreateDeviceId } from '../utils/deviceGenerator';
 
 export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
   const [mode, setMode] = useState('login'); // 'login' | 'register'
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [nickname, setNickname] = useState('');
-  const [serverUrl, setServerUrl] = useState('http://localhost:33333/api/v1');
+  const [serverUrl, setServerUrl] = useState('/api-live'); // Proxied to https://dev-service.altamino.top
   const [isLoading, setIsLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -18,19 +19,19 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
     setErrorMsg('');
 
     try {
-      // Attempt login against AltAmino REST API endpoint /g/s/auth/login or fallback
       const endpoint = mode === 'login' ? `${serverUrl}/g/s/auth/login` : `${serverUrl}/g/s/auth/register`;
+      const deviceId = getOrCreateDeviceId();
       
       const payload = mode === 'login' 
-        ? { email, secret: `0 ${password}`, clientType: 100 }
-        : { email, secret: `0 ${password}`, nickname: nickname.trim(), clientType: 100 };
+        ? { email, secret: `0 ${password}`, clientType: 100, deviceID: deviceId, timestamp: Date.now() }
+        : { email, secret: `0 ${password}`, nickname: nickname.trim(), clientType: 100, deviceID: deviceId, timestamp: Date.now() };
 
       let successData = null;
 
       try {
         const res = await fetch(endpoint, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: getLiveHeaders(),
           body: JSON.stringify(payload)
         });
         const json = await res.json();
@@ -42,12 +43,16 @@ export default function AuthModal({ isOpen, onClose, onLoginSuccess }) {
             email: email,
             sid: json.sid || `NDC_AUTH_${Date.now()}`,
             level: json.userProfile?.level || 12,
-            coins: 500
+            coins: json.userProfile?.coins || 500,
+            isLiveSession: true
           };
+        } else if (json['api:message']) {
+          setErrorMsg(json['api:message']);
+          setIsLoading(false);
+          return;
         }
       } catch (networkErr) {
-        // Backend not running on localhost:33333, grant local session for standalone client experience
-        console.warn("[AuthModal] Direct REST API unavailable, creating authenticated session token:", networkErr);
+        console.warn("[AuthModal] Network request error, activating standalone session:", networkErr);
       }
 
       if (!successData) {
